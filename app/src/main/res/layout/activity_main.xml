@@ -26,7 +26,7 @@
         tools:text="@string/bluetooth_info_placeholder" />
 
     <Button
-        android:id="@+id/button"
+        android:id="@+id/button_confirm"
         style="@style/Widget.AppCompat.Button.Colored"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
