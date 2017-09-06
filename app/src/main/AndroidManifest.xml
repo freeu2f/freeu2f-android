@@ -4,7 +4,6 @@
 
     <uses-permission android:name="android.permission.BLUETOOTH" />
     <uses-permission android:name="android.permission.BLUETOOTH_ADMIN" />
-    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
 
     <uses-feature
         android:name="android.hardware.bluetooth_le"
@@ -20,7 +19,6 @@
         <activity android:name=".MainActivity">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
-
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
@@ -32,10 +30,9 @@
                 android:name="android.support.PARENT_ACTIVITY"
                 android:value="org.fedorahosted.freeu2f.MainActivity" />
         </activity>
-
         <service
-            android:name=".BluetoothWorker"
-            android:exported="false"/>
+            android:name=".U2FService"
+            android:exported="false"
+            android:label="U2FService" />
     </application>
-
 </manifest>
