@@ -13,6 +13,9 @@ import android.widget.Button;
 
 public class MainActivity extends AppCompatActivity {
     private static final String TAG = "MAIN_ACTIVITY";
+    // greater than zero to enable
+    private static final int REQUEST_ENABLE_BT = 1;
+    private static final int REQUEST_COURSE_LOCATION = 45;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -30,6 +33,7 @@ public class MainActivity extends AppCompatActivity {
                 Log.d(TAG,"confirm button clicked");
             }
         });
+
     }
 
     @Override
