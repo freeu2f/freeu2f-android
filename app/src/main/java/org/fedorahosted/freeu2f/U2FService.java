@@ -15,9 +15,16 @@ import android.content.Intent;
 import android.os.IBinder;
 import android.os.ParcelUuid;
 import android.support.annotation.Nullable;
+import android.support.v4.content.LocalBroadcastManager;
 import android.util.Log;
 
+import java.util.Arrays;
+
 public class U2FService extends Service {
+    public static final String UI_DATA = "UI_DATA";
+    public static final String UPDATE_UI_BROADCAST = "org.fedorahosted.freeu2f.U2FService.updateUI";
+    private LocalBroadcastManager localBroadcastManager = null;
+
     private U2FGattService mU2FGattService = new U2FGattService();
     private BluetoothLeAdvertiser mBtLeAdvertiser = null;
     private BluetoothGattServer mGattServer = null;
@@ -37,13 +44,15 @@ public class U2FService extends Service {
         @Override
         public void onStartSuccess(AdvertiseSettings settingsInEffect) {
             super.onStartSuccess(settingsInEffect);
-            Log.d(getClass().getCanonicalName(), "Advertising started...");
+            brodadcastUIUpdates(getString(R.string.ADVERTISE_START_SUCCESS));
+            Log.d(getClass().getCanonicalName(), getString(R.string.ADVERTISE_START_SUCCESS));
         }
 
         @Override
         public void onStartFailure(int errorCode) {
             super.onStartFailure(errorCode);
-            Log.d(getClass().getCanonicalName(), "Advertising failed!");
+            brodadcastUIUpdates(getString(R.string.ADVERTISE_START_FAILED));
+            Log.d(getClass().getCanonicalName(), getString(R.string.ADVERTISE_START_FAILED));
         }
     };
 
@@ -59,15 +68,27 @@ public class U2FService extends Service {
 
             if (offset != 0) {
                 status = BluetoothGatt.GATT_INVALID_OFFSET;
+                brodadcastUIUpdates("status: GATT_INVALID_OFFSET");
             } else if (chr.equals(U2FGattService.U2F_CONTROL_POINT_LENGTH)) {
                 status = BluetoothGatt.GATT_SUCCESS;
                 bytes = new byte[] { 0x02, 0x00 }; /* Length == 512, see U2F BT 6.1 */
+                brodadcastUIUpdates(String.format("status: GATT_SUCCESS, bytes %s", Arrays.toString(bytes)));
             } else if (chr.equals(U2FGattService.U2F_SERVICE_REVISION_BITFIELD)) {
                 status = BluetoothGatt.GATT_SUCCESS;
                 bytes = new byte[] { 0x40 };       /* Version == 1.2, see U2F BT 6.1 */
+                brodadcastUIUpdates(String.format("status: GATT_SUCCESS, bytes %s", Arrays.toString(bytes)));
             }
 
-            Log.d(getClass().getCanonicalName(), Integer.valueOf(bytes.length).toString());
+            // needs to be detached from block to allow updated check
+            if (status == BluetoothGatt.GATT_FAILURE){
+                brodadcastUIUpdates("status: GATT_FAILURE");
+            }
+
+            String message = (bytes == null)
+                    ? "byte length was null"
+                    : Integer.valueOf(bytes.length).toString();
+
+            Log.d(getClass().getCanonicalName(), message);
             mGattServer.sendResponse(device, requestId, status, 0, bytes);
         }
 
@@ -94,6 +115,16 @@ public class U2FService extends Service {
             mGattServer.sendResponse(device, requestId, status, 0, null);
         }
     };
+
+    private void brodadcastUIUpdates(String text){
+        if (localBroadcastManager == null){
+            localBroadcastManager = LocalBroadcastManager.getInstance(this);
+        }
+
+        Intent intent = new Intent(UPDATE_UI_BROADCAST);
+        intent.putExtra(UI_DATA, text);
+        localBroadcastManager.sendBroadcast(intent);
+    }
 
     @Override
     public void onCreate() {

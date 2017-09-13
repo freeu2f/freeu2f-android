@@ -76,4 +76,6 @@
 
     <string name="pref_title_vibrate">Vibrate</string>
     <string name="title_activity_about">About</string>
+    <string name="ADVERTISE_START_SUCCESS">Advertising started...</string>
+    <string name="ADVERTISE_START_FAILED">Advertising failed!</string>
 </resources>

@@ -21,7 +21,9 @@
         android:layout_marginTop="23dp"
         android:background="@drawable/border"
         android:padding="10dp"
-        android:text="@string/bluetooth_info_placeholder"
+        android:maxLines = "50"
+        android:scrollbars = "vertical"
+        android:hint="@string/bluetooth_info_placeholder"
         android:visibility="visible"
         tools:text="@string/bluetooth_info_placeholder" />
 
