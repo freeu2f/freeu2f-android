@@ -75,7 +75,8 @@ in software rather than in hardware.
 
 Another possible implementation is to generate a new signing key pair in the
 hardware key store for each registration. Using this method, the attestation
-and authentication keys can be the same; so only one key needs to be generated.
+and authentication keys can be the same; so only one key needs to be generated
+per registration (zero global keys).
 
 In this case the key handle can be randomly generated. The key store alias for
 the signing key the hex encoding of the concatination of:
@@ -123,6 +124,13 @@ this functionality in the future.
 FreeU2F is currently implemented with the Per-Registration Hardware Keys model.
 This was chosen for its ease of implementation and good security benefits.
 However, this might change in the future.
+
+# Remaining Issues
+## Counter Management
+
+We need a counter for the authentication reply. This is not currently
+implemented (we always return 0). Where should we store this?  Should this be
+per-registration or global? How should we protect it from outside modification?
 
 [summary]: https://npmccallum.gitlab.io/post/u2f-protocol-overview/
 [tee]: https://source.android.com/security/trusty/
