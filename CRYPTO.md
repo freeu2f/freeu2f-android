@@ -112,6 +112,16 @@ keys could leak privacy information. Further, device-side revocation still
 doesn't revoke the key on the server. Thus the server-side would still be
 vulnerable.
 
+On the other hand, one bit of metadata which might be nice to attach at key
+creation time would be user confirmation and key security policy. This can be
+implemented without per-registration hardware keys. However, with them, the
+policy can be evaluated inside the key store code itself. For example, at key
+creation time the use could say "I want fingerprint verifciation for this key."
+Then, we can turn on the key store's fingerprint verification flag. This is a
+benefit of this implementation design. Otherwise, we have to do all of this
+policy evaluation in software (and possibly with a compromise on, say, a rooted
+phone).
+
 ## Trusted Executable Environment
 
 It might be possible to get the best of both worlds by writing a [TEE
