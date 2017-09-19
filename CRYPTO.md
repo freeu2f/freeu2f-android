@@ -40,6 +40,12 @@ The authentication key, if different from the attestation key, does not need to
 be signed by a certification authority since its public key is signed by the
 attestation key (above).
 
+## Security Considerations
+
+It is important that the host not be able to use a key handle with a different
+application parameter than it was created with. Some mechanism must be designed
+to ensure that any attempt to do this will produce the appropriate error.
+
 # Possible Implementations
 ## Encrypted Private Key in Key Handle
 
@@ -47,12 +53,16 @@ One possible implementation is to have FreeU2F create two global keys on first
 launch: an attestation key (P-256) and an encryption key (symmetric). The
 global attestation key would be used directly for all attestations.
 
-During the registration step, a new (non-hardware) key pair would be
-generated. The newly-generated private key would be encrypted using the global
-encryption key and the ciphertext would be returned as the key handle. The
-attestation key would sign the newly-generated public key. During the
-authentication command, we would decrypt the private key from the key handle.
-Using this private key, we would create the authentication signature.
+During the registration step, a new (non-hardware) key pair would be generated.
+The newly-generated private key would be encrypted using the global encryption
+key, with the application parameter as AEAD, and the resulting IV, ciphertext
+and tag would be returned as the key handle. The attestation key would sign the
+newly-generated public key.
+
+During the authentication step, we would decrypt the private key from the key
+handle. Using this private key, we would create the authentication signature.
+Since the application parameter will have to be the same for AEAD validation to
+pass, a malicious host cannot swap application parameters.
 
 This method basically uses the key handle field as an encrypted cookie.
 
@@ -67,13 +77,8 @@ Another possible implementation is to generate a new signing key pair in the
 hardware key store for each registration. Using this method, the attestation
 and authentication keys can be the same; so only one key needs to be generated.
 
-In this case the key handle can be randomly generated. It is, however,
-important that the host cannot request a key handle for a different application
-parameter. Therefore, we need to somehow link the key handle and the
-application parameter such that they can only be used together.
-
-Perhaps the easiest method is to simply make the key store alias for the
-signing key the hex encoding of the concatination of:
+In this case the key handle can be randomly generated. The key store alias for
+the signing key the hex encoding of the concatination of:
 
 |        Key Store Alias Element | Size (Bytes) |
 |-------------------------------:|:-------------|
@@ -92,8 +97,7 @@ contents of the authentication message payload. Notice the overlap:
 |                     Key Handle | 0-255        |
 
 This would make it impossible to use a signing key on anything but the same
-application parameter and key handle. And we can just randomly generate the key
-handle.
+application parameter and key handle.
 
 This implementation has one big positive: all signing happens inside the
 hardware, significantly limiting possible key exposure. This comes at the cost
