@@ -17,10 +17,34 @@ import android.os.ParcelUuid;
 import android.support.annotation.Nullable;
 import android.util.Log;
 
+import org.fedorahosted.freeu2f.u2f.APDUReply;
+import org.fedorahosted.freeu2f.u2f.APDURequest;
+import org.fedorahosted.freeu2f.u2f.ErrorCode;
+import org.fedorahosted.freeu2f.u2f.Frameable;
+import org.fedorahosted.freeu2f.u2f.FrameableException;
+import org.fedorahosted.freeu2f.u2f.Packet;
+
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
+import java.util.HashMap;
+import java.util.Map;
+
 public class U2FService extends Service {
+    private static Map<APDURequest.Instruction, RequestHandler> requestHandlers = new HashMap<>();
+    private static byte[] VERSION = new byte[] { 0b01000000 }; /* VERSION = 1.2, see U2F BT 6.1 */
+    private static char MTU = 512;
+
+    static {
+        requestHandlers.put(APDURequest.Instruction.AUTHENTICATE, new AuthenticateRequestHandler());
+        requestHandlers.put(APDURequest.Instruction.REGISTER, new RegisterRequestHandler());
+        requestHandlers.put(APDURequest.Instruction.VERSION, new VersionRequestHandler());
+    }
+
     private U2FGattService mU2FGattService = new U2FGattService();
     private BluetoothLeAdvertiser mBtLeAdvertiser = null;
     private BluetoothGattServer mGattServer = null;
+
+    private Packet packet = null;
 
     private AdvertiseSettings cfg = new AdvertiseSettings.Builder()
             .setAdvertiseMode(AdvertiseSettings.ADVERTISE_MODE_LOW_POWER)
@@ -29,7 +53,7 @@ public class U2FService extends Service {
             .build();
 
     private AdvertiseData data = new AdvertiseData.Builder()
-            .addServiceUuid(new ParcelUuid(U2FGattService.U2F_UUID))
+            .addServiceUuid(new ParcelUuid(mU2FGattService.getUuid()))
             .setIncludeDeviceName(true)
             .build();
 
@@ -49,22 +73,23 @@ public class U2FService extends Service {
 
     private BluetoothGattServerCallback mGattCallback = new BluetoothGattServerCallback() {
         @Override
-        public void onCharacteristicReadRequest(
-                BluetoothDevice device,
-                int requestId,
-                int offset,
-                BluetoothGattCharacteristic chr) {
+        public void onCharacteristicReadRequest(BluetoothDevice device,
+                                                int requestId,
+                                                int offset,
+                                                BluetoothGattCharacteristic chr) {
             int status = BluetoothGatt.GATT_FAILURE;
             byte[] bytes = null;
 
             if (offset != 0) {
                 status = BluetoothGatt.GATT_INVALID_OFFSET;
-            } else if (chr.equals(U2FGattService.U2F_CONTROL_POINT_LENGTH)) {
+            } else if (chr.equals(mU2FGattService.controlPointLength)) {
                 status = BluetoothGatt.GATT_SUCCESS;
-                bytes = new byte[] { 0x02, 0x00 }; /* Length == 512, see U2F BT 6.1 */
-            } else if (chr.equals(U2FGattService.U2F_SERVICE_REVISION_BITFIELD)) {
-                status = BluetoothGatt.GATT_SUCCESS;
-                bytes = new byte[] { 0x40 };       /* Version == 1.2, see U2F BT 6.1 */
+                ByteBuffer bb = ByteBuffer.allocate(2);
+                bb.order(ByteOrder.BIG_ENDIAN);
+                bb.putChar(MTU);
+                bytes = bb.array();
+            } else if (chr.equals(mU2FGattService.serviceRevisionBitfield)) {
+                bytes = VERSION;
             }
 
             Log.d(getClass().getCanonicalName(), Integer.valueOf(bytes.length).toString());
@@ -72,22 +97,53 @@ public class U2FService extends Service {
         }
 
         @Override
-        public void onCharacteristicWriteRequest(
-                BluetoothDevice device,
-                int requestId,
-                BluetoothGattCharacteristic chr,
-                boolean preparedWrite,
-                boolean responseNeeded,
-                int offset,
-                byte[] value) {
+        public void onCharacteristicWriteRequest(BluetoothDevice device,
+                                                 int requestId,
+                                                 BluetoothGattCharacteristic chr,
+                                                 boolean preparedWrite,
+                                                 boolean responseNeeded,
+                                                 int offset,
+                                                 byte[] value) {
             int status = BluetoothGatt.GATT_FAILURE;
 
             if (offset != 0) {
                 status = BluetoothGatt.GATT_INVALID_OFFSET;
-            } else if (chr.equals(U2FGattService.U2F_CONTROL_POINT)) {
+            } else if (chr.equals(mU2FGattService.controlPoint)) {
                 status = BluetoothGatt.GATT_SUCCESS;
-                // TODO
-            } else if (chr.equals(U2FGattService.U2F_SERVICE_REVISION_BITFIELD)) {
+                Frameable reply = null;
+
+                try {
+                    if (packet == null)
+                        packet = new Packet(value);
+                    else
+                        packet.put(value);
+
+                    if (packet.isComplete()) {
+                        switch (packet.getCommand()) {
+                        case PING:
+                            reply = packet;
+                            break;
+                        case MSG:
+                            APDURequest req = new APDURequest(packet.getData());
+                            reply = requestHandlers.get(req.ins).handle(req);
+                            break;
+                        default:
+                            reply = ErrorCode.INVALID_CMD;
+                            break;
+                        }
+
+                        packet = null;
+                    }
+                } catch (FrameableException e) {
+                    packet = null;
+                    reply = e;
+                }
+
+                for (byte[] frame : reply.toFrames(MTU)) {
+                    mU2FGattService.status.setValue(frame);
+                    mGattServer.notifyCharacteristicChanged(device, mU2FGattService.status, true);
+                }
+            } else if (chr.equals(mU2FGattService.serviceRevisionBitfield)) {
                 status = BluetoothGatt.GATT_SUCCESS;
             }
 
