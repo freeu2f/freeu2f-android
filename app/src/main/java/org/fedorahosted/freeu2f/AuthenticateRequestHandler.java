@@ -2,7 +2,7 @@ package org.fedorahosted.freeu2f;
 
 import org.fedorahosted.freeu2f.u2f.APDUReply;
 import org.fedorahosted.freeu2f.u2f.APDURequest;
-import org.fedorahosted.freeu2f.u2f.FrameableException;
+import org.fedorahosted.freeu2f.u2f.PacketableException;
 
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
@@ -24,20 +24,20 @@ public class AuthenticateRequestHandler implements RequestHandler {
         }
 
         public static Control valueOf(byte cnt)
-                throws FrameableException {
+                throws PacketableException {
             for (Control c : values()) {
                 if (c.value == cnt)
                     return c;
             }
 
-            throw new FrameableException(APDUReply.StatusCode.UNKNOWN);
+            throw new PacketableException(APDUReply.StatusCode.UNKNOWN);
         }
     }
 
     @Override
-    public APDUReply handle(APDURequest req) throws FrameableException {
+    public APDUReply handle(APDURequest req) throws PacketableException {
         if (req.lc.length < 65)
-            throw new FrameableException(APDUReply.StatusCode.WRONG_LENGTH);
+            throw new PacketableException(APDUReply.StatusCode.WRONG_LENGTH);
 
         Control cnt = Control.valueOf(req.p1);
 
@@ -88,7 +88,7 @@ public class AuthenticateRequestHandler implements RequestHandler {
             return new APDUReply(APDUReply.StatusCode.NO_ERROR, pay.array());
         } catch (Exception e) {
             e.printStackTrace();
-            throw new FrameableException(APDUReply.StatusCode.WRONG_DATA);
+            throw new PacketableException(APDUReply.StatusCode.WRONG_DATA);
         }
     }
 }

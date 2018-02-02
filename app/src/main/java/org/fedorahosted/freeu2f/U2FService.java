@@ -17,12 +17,12 @@ import android.os.ParcelUuid;
 import android.support.annotation.Nullable;
 import android.util.Log;
 
-import org.fedorahosted.freeu2f.u2f.APDUReply;
 import org.fedorahosted.freeu2f.u2f.APDURequest;
 import org.fedorahosted.freeu2f.u2f.ErrorCode;
-import org.fedorahosted.freeu2f.u2f.Frameable;
-import org.fedorahosted.freeu2f.u2f.FrameableException;
 import org.fedorahosted.freeu2f.u2f.Packet;
+import org.fedorahosted.freeu2f.u2f.PacketParser;
+import org.fedorahosted.freeu2f.u2f.Packetable;
+import org.fedorahosted.freeu2f.u2f.PacketableException;
 
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
@@ -32,7 +32,8 @@ import java.util.Map;
 public class U2FService extends Service {
     private static Map<APDURequest.Instruction, RequestHandler> requestHandlers = new HashMap<>();
     private static byte[] VERSION = new byte[] { 0b01000000 }; /* VERSION = 1.2, see U2F BT 6.1 */
-    private static char MTU = 512;
+    private static char OUTPUT_MTU = 512;
+    private static char INPUT_MTU = 47; /* Higher values break with Linux/bluez. TODO: Why? */
 
     static {
         requestHandlers.put(APDURequest.Instruction.AUTHENTICATE, new AuthenticateRequestHandler());
@@ -42,9 +43,8 @@ public class U2FService extends Service {
 
     private U2FGattService mU2FGattService = new U2FGattService();
     private BluetoothLeAdvertiser mBtLeAdvertiser = null;
+    private PacketParser mParser = new PacketParser();
     private BluetoothGattServer mGattServer = null;
-
-    private Packet packet = null;
 
     private AdvertiseSettings cfg = new AdvertiseSettings.Builder()
             .setAdvertiseMode(AdvertiseSettings.ADVERTISE_MODE_LOW_POWER)
@@ -61,13 +61,13 @@ public class U2FService extends Service {
         @Override
         public void onStartSuccess(AdvertiseSettings settingsInEffect) {
             super.onStartSuccess(settingsInEffect);
-            Log.d(getClass().getCanonicalName(), "Advertising started...");
+            Log.d("AdvertiseCallback", "Advertising started...");
         }
 
         @Override
         public void onStartFailure(int errorCode) {
             super.onStartFailure(errorCode);
-            Log.d(getClass().getCanonicalName(), "Advertising failed!");
+            Log.d("AdvertiseCallback", "Advertising failed!");
         }
     };
 
@@ -86,14 +86,32 @@ public class U2FService extends Service {
                 status = BluetoothGatt.GATT_SUCCESS;
                 ByteBuffer bb = ByteBuffer.allocate(2);
                 bb.order(ByteOrder.BIG_ENDIAN);
-                bb.putChar(MTU);
+                bb.putChar(INPUT_MTU);
                 bytes = bb.array();
             } else if (chr.equals(mU2FGattService.serviceRevisionBitfield)) {
                 bytes = VERSION;
             }
 
-            Log.d(getClass().getCanonicalName(), Integer.valueOf(bytes.length).toString());
             mGattServer.sendResponse(device, requestId, status, 0, bytes);
+        }
+
+        private void dump(String prfx, byte[] value, int off, int len) {
+            StringBuilder sb = new StringBuilder();
+            for (int i = off; i < len; i++)
+                sb.append(String.format("%02X", value[i]));
+            Log.d("===========================", String.format("%s (%d): %s", prfx, value.length, sb.toString()));
+        }
+
+        private void dump(String prfx, byte[] value) {
+            dump(prfx, value, 0, value.length);
+        }
+
+        private void reply(BluetoothDevice dev, Packetable pkt) {
+            for (byte[] frame : pkt.toPacket().toFrames(OUTPUT_MTU)) {
+                dump("Output", frame);
+                mU2FGattService.status.setValue(frame);
+                mGattServer.notifyCharacteristicChanged(dev, mU2FGattService.status, true);
+            }
         }
 
         @Override
@@ -110,38 +128,29 @@ public class U2FService extends Service {
                 status = BluetoothGatt.GATT_INVALID_OFFSET;
             } else if (chr.equals(mU2FGattService.controlPoint)) {
                 status = BluetoothGatt.GATT_SUCCESS;
-                Frameable reply = null;
+
+                dump("Input", value);
 
                 try {
-                    if (packet == null)
-                        packet = new Packet(value);
-                    else
-                        packet.put(value);
-
-                    if (packet.isComplete()) {
-                        switch (packet.getCommand()) {
+                    Packet pkt = mParser.update(value);
+                    if (pkt != null) {
+                        Log.d("=================================", "Got packet!");
+                        switch (pkt.getCommand()) {
                         case PING:
-                            reply = packet;
+                            reply(device, pkt);
                             break;
                         case MSG:
-                            APDURequest req = new APDURequest(packet.getData());
-                            reply = requestHandlers.get(req.ins).handle(req);
+                            APDURequest req = new APDURequest(pkt.getData());
+                            reply(device, requestHandlers.get(req.ins).handle(req));
                             break;
                         default:
-                            reply = ErrorCode.INVALID_CMD;
+                            reply(device, ErrorCode.INVALID_CMD.toPacket());
                             break;
                         }
-
-                        packet = null;
                     }
-                } catch (FrameableException e) {
-                    packet = null;
-                    reply = e;
-                }
-
-                for (byte[] frame : reply.toFrames(MTU)) {
-                    mU2FGattService.status.setValue(frame);
-                    mGattServer.notifyCharacteristicChanged(device, mU2FGattService.status, true);
+                } catch (PacketableException e) {
+                    e.printStackTrace();
+                    reply(device, e);
                 }
             } else if (chr.equals(mU2FGattService.serviceRevisionBitfield)) {
                 status = BluetoothGatt.GATT_SUCCESS;

@@ -1,6 +1,6 @@
 package org.fedorahosted.freeu2f.u2f;
 
-public enum ErrorCode implements Frameable {
+public enum ErrorCode implements Packetable {
     SUCCESS(0x00),
     INVALID_CMD(0x01),
     INVALID_PAR(0x02),
@@ -16,8 +16,8 @@ public enum ErrorCode implements Frameable {
     }
 
     @Override
-    public byte[][] toFrames(int mtu) {
+    public Packet toPacket() {
         byte[] body = new byte[] { value };
-        return new Packet(Packet.Command.ERROR, body).toFrames(mtu);
+        return new Packet(PacketCommand.ERROR, body);
     }
 }

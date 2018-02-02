@@ -15,15 +15,13 @@ public class APDURequest {
         }
 
         public static Class valueOf(byte cmd)
-                throws FrameableException {
+                throws PacketableException {
             for (Class c : values()) {
                 if (c.value == cmd)
                     return c;
             }
 
-            throw new FrameableException(
-                    new APDUReply(APDUReply.StatusCode.CLA_NOT_SUPPORTED)
-            );
+            throw new PacketableException(APDUReply.StatusCode.CLA_NOT_SUPPORTED);
         }
     }
 
@@ -39,15 +37,13 @@ public class APDURequest {
         }
 
         public static Instruction valueOf(byte cmd)
-                throws FrameableException {
+                throws PacketableException {
             for (Instruction i : values()) {
                 if (i.value == cmd)
                     return i;
             }
 
-            throw new FrameableException(
-                    new APDUReply(APDUReply.StatusCode.INS_NOT_SUPPORTED)
-            );
+            throw new PacketableException(APDUReply.StatusCode.INS_NOT_SUPPORTED);
         }
     }
 
@@ -58,7 +54,7 @@ public class APDURequest {
     public byte[] lc = new byte[] {};
     public char le = 0;
 
-    public APDURequest(byte[] msg) throws FrameableException {
+    public APDURequest(byte[] msg) throws PacketableException {
         ByteBuffer bb = ByteBuffer.wrap(msg);
         bb.order(ByteOrder.BIG_ENDIAN);
 
@@ -98,7 +94,7 @@ public class APDURequest {
                 }
             }
         } catch (BufferUnderflowException e) {
-            throw new FrameableException(ErrorCode.INVALID_PAR);
+            throw new PacketableException(ErrorCode.INVALID_PAR);
         }
     }
 }

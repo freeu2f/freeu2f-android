@@ -3,8 +3,8 @@ package org.fedorahosted.freeu2f.u2f;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 
-public class APDUReply implements Frameable {
-    public enum StatusCode implements Frameable {
+public class APDUReply implements Packetable {
+    public enum StatusCode implements Packetable {
         NO_ERROR(0x9000),
         CONDITIONS_NOT_SATISFIED(0x6985),
         WRONG_DATA(0x6a80),
@@ -20,8 +20,8 @@ public class APDUReply implements Frameable {
         }
 
         @Override
-        public byte[][] toFrames(int mtu) {
-            return new APDUReply(this).toFrames(mtu);
+        public Packet toPacket() {
+            return new APDUReply(this).toPacket();
         }
     }
 
@@ -38,12 +38,11 @@ public class APDUReply implements Frameable {
         this.data = data;
     }
 
-    @Override
-    public byte[][] toFrames(int mtu) {
+    public Packet toPacket() {
         ByteBuffer bb = ByteBuffer.allocate(data.length + 2);
         bb.order(ByteOrder.BIG_ENDIAN);
         bb.put(data);
         bb.putChar(code.value);
-        return new Packet(Packet.Command.MSG, bb.array()).toFrames(mtu);
+        return new Packet(PacketCommand.MSG, bb.array());
     }
 }
