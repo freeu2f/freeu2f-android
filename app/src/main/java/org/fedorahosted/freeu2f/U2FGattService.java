@@ -1,6 +1,7 @@
 package org.fedorahosted.freeu2f;
 
 import android.bluetooth.BluetoothGattCharacteristic;
+import android.bluetooth.BluetoothGattDescriptor;
 import android.bluetooth.BluetoothGattService;
 
 import java.util.UUID;
@@ -35,8 +36,16 @@ public class U2FGattService extends BluetoothGattService {
             BluetoothGattCharacteristic.PERMISSION_WRITE_ENCRYPTED_MITM
         );
 
+    public final BluetoothGattDescriptor statusDescriptor =
+        new BluetoothGattDescriptor(
+            UUID.fromString("00002902-0000-1000-8000-00805F9B34FB"),
+            BluetoothGattDescriptor.PERMISSION_READ_ENCRYPTED_MITM |
+            BluetoothGattDescriptor.PERMISSION_WRITE_ENCRYPTED_MITM
+        );
+
     public U2FGattService() {
         super(UUID.fromString("0000fffd-0000-1000-8000-00805f9b34fb"), SERVICE_TYPE_PRIMARY);
+        status.addDescriptor(statusDescriptor);
         addCharacteristic(controlPoint);
         addCharacteristic(status);
         addCharacteristic(controlPointLength);
