@@ -33,8 +33,6 @@ import java.util.Map;
 public class U2FService extends Service {
     private static Map<APDURequest.Instruction, RequestHandler> requestHandlers = new HashMap<>();
     private static byte[] VERSION = new byte[] { 0b01000000 }; /* VERSION = 1.2, see U2F BT 6.1 */
-    private static char OUTPUT_MTU = 512;
-    private static char INPUT_MTU = 47; /* Higher values break with Linux/bluez. TODO: Why? */
 
     static {
         requestHandlers.put(APDURequest.Instruction.AUTHENTICATE, new AuthenticateRequestHandler());
@@ -73,6 +71,8 @@ public class U2FService extends Service {
     };
 
     private BluetoothGattServerCallback mGattCallback = new BluetoothGattServerCallback() {
+        private char mMTU = 20;
+
         @Override
         public void onCharacteristicReadRequest(BluetoothDevice device,
                                                 int requestId,
@@ -87,7 +87,7 @@ public class U2FService extends Service {
                 status = BluetoothGatt.GATT_SUCCESS;
                 ByteBuffer bb = ByteBuffer.allocate(2);
                 bb.order(ByteOrder.BIG_ENDIAN);
-                bb.putChar(INPUT_MTU);
+                bb.putChar(mMTU);
                 bytes = bb.array();
             } else if (chr.equals(mU2FGattService.serviceRevisionBitfield)) {
                 bytes = VERSION;
@@ -108,7 +108,7 @@ public class U2FService extends Service {
         }
 
         private void reply(BluetoothDevice dev, Packetable pkt) {
-            for (byte[] frame : pkt.toPacket().toFrames(OUTPUT_MTU)) {
+            for (byte[] frame : pkt.toPacket().toFrames(mMTU)) {
                 dump("Output", frame);
                 mU2FGattService.status.setValue(frame);
                 mGattServer.notifyCharacteristicChanged(dev, mU2FGattService.status, true);
@@ -163,6 +163,12 @@ public class U2FService extends Service {
         @Override
         public void onDescriptorWriteRequest(BluetoothDevice device, int requestId, BluetoothGattDescriptor descriptor, boolean preparedWrite, boolean responseNeeded, int offset, byte[] value) {
             mGattServer.sendResponse(device, requestId, BluetoothGatt.GATT_SUCCESS, offset, value);
+        }
+
+        @Override
+        public void onMtuChanged(BluetoothDevice device, int mtu) {
+            // I don't know why we do - 3. But if we don't, the data is truncated on the other end.
+            mMTU = (char) (mtu - 3);
         }
     };
 
