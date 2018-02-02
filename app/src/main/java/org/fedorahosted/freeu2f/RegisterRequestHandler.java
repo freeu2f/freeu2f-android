@@ -74,9 +74,12 @@ public class RegisterRequestHandler implements RequestHandler {
             s.update(pay.toByteArray());
 
             // Create the output structure
+            // NOTE: PublicKey.getEncoded() returns the key in X.509 ecPublicKey format.
+            // We could parse the DER. But the last 65 bytes are the key. So we cheat.
+            byte[] pub = kp.getPublic().getEncoded();
             ByteArrayOutputStream out = new ByteArrayOutputStream();
             out.write(new byte[] { 0x05 });
-            out.write(kp.getPublic().getEncoded());
+            out.write(pub, pub.length - 65, 65);
             out.write((byte) hnd.length);
             out.write(hnd);
             out.write(crt.getEncoded());
