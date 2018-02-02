@@ -81,11 +81,11 @@ public class AuthenticateRequestHandler implements RequestHandler {
 
             // Create the reply message.
             ByteBuffer out = ByteBuffer.allocate(5 + sig.length);
-            pay.put(up);
-            pay.putInt(0);
-            pay.put(sig);
+            out.put(up);
+            out.putInt(0);
+            out.put(sig);
 
-            return new APDUReply(APDUReply.StatusCode.NO_ERROR, pay.array());
+            return new APDUReply(APDUReply.StatusCode.NO_ERROR, out.array());
         } catch (Exception e) {
             e.printStackTrace();
             throw new PacketableException(APDUReply.StatusCode.WRONG_DATA);
